@@ -504,7 +504,6 @@ export interface SubmissionsRepository {
   createScoreAdjustment(params: CreateScoreAdjustmentParams, actor: AdminUser): Promise<ScoreAdjustmentDetail>;
   listScoreAdjustments(participantId?: string): Promise<ScoreAdjustmentDetail[]>;
   findParticipant(identifier: string): Promise<Participant | null>;
-  listParticipants(): Promise<Participant[]>;
   registerParticipant(input: RegisterParticipantInput): Promise<Participant>;
   getParticipantTasks(participantId: string): Promise<ParticipantTaskView[]>;
   seed?(): Promise<void>;

@@ -2,11 +2,7 @@ import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sq
 import { calculateFinalScore, calculateSubmissionPenalty, describePenalty } from "@/lib/review-engine/penalty-calculator";
 import { validateAndExtractDriveKey } from "@/lib/admin/validation";
 import { ApiError } from "@/lib/admin/auth";
-<<<<<<< HEAD
-import type { AdminUser, Participant, PolicySnapshot, QueueRow, ReviewStatus, Submission } from "@/lib/admin/types";
-=======
-import type { AdminUser, PolicySnapshot, QueueRow, ReviewStatus, Task } from "@/lib/admin/types";
->>>>>>> 8d7a01145cd04ba558c7ffb90f81c10609620648
+import type { AdminUser, Participant, PolicySnapshot, QueueRow, ReviewStatus, Submission, Task } from "@/lib/admin/types";
 import * as schema from "@/lib/db/admin-schema";
 import { getPrdSeedData } from "@/lib/repositories/seed/prd-seed";
 import type {
@@ -28,20 +24,17 @@ import type {
   LeaderboardResult,
   LeaderboardStateInfo,
   ListParticipantsQuery,
+  QuizDetail,
+  QuizQuestion,
+  PublicContent,
+  ProgramInfoItem,
+  ParticipantDetail,
+  MilestoneItem,
   ListParticipantsResult,
   ListSubmissionsQuery,
   ListSubmissionsResult,
-<<<<<<< HEAD
   ParticipantTaskView,
   RegisterParticipantInput,
-=======
-  MilestoneItem,
-  ParticipantDetail,
-  ProgramInfoItem,
-  PublicContent,
-  QuizDetail,
-  QuizQuestion,
->>>>>>> 8d7a01145cd04ba558c7ffb90f81c10609620648
   ResubmitParams,
   ReviseDecisionParams,
   RevokeExtensionResult,
@@ -54,10 +47,9 @@ import type {
   TaskReport,
   TestimonialItem,
 } from "@/lib/repositories/types";
-
 export class DrizzleRepository implements SubmissionsRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private db: any, private isTx: boolean = false) {}
+  constructor(private db: any, private isTx: boolean = false) { }
 
   public async withTransaction<T>(fn: (repo: SubmissionsRepository) => Promise<T>): Promise<T> {
     if (this.isTx) {
@@ -478,12 +470,12 @@ export class DrizzleRepository implements SubmissionsRepository {
 
       const timing = isSubmitted
         ? {
-            isLate: sub.isLate,
-            badge: sub.isLate ? `Late ${sub.penaltyDays}d` : "On time",
-            label: sub.isLate
-              ? `Late by ${sub.penaltyDays} day${sub.penaltyDays === 1 ? "" : "s"}`
-              : "On time",
-          }
+          isLate: sub.isLate,
+          badge: sub.isLate ? `Late ${sub.penaltyDays}d` : "On time",
+          label: sub.isLate
+            ? `Late by ${sub.penaltyDays} day${sub.penaltyDays === 1 ? "" : "s"}`
+            : "On time",
+        }
         : { isLate: false, badge: "Not submitted", label: "Not submitted" };
 
       const rowStatus: ReviewStatus | "missing" = isSubmitted ? sub.reviewStatus : "missing";
@@ -639,11 +631,11 @@ export class DrizzleRepository implements SubmissionsRepository {
     const [task] = await this.db.select().from(schema.tasks).where(eq(schema.tasks.id, sub.taskId));
     const reviewer = sub.assignedReviewerId
       ? (
-          await this.db
-            .select()
-            .from(schema.adminUsers)
-            .where(eq(schema.adminUsers.id, sub.assignedReviewerId))
-        )[0]
+        await this.db
+          .select()
+          .from(schema.adminUsers)
+          .where(eq(schema.adminUsers.id, sub.assignedReviewerId))
+      )[0]
       : null;
 
     const versions = await this.db
@@ -670,13 +662,11 @@ export class DrizzleRepository implements SubmissionsRepository {
         type: "submitted",
         at: sub.firstSubmittedAt.toISOString(),
         actor: part.name,
-        text: `Submitted version 1${
-          sub.isLate
-            ? ` - Late by ${sub.penaltyDays} day${sub.penaltyDays === 1 ? "" : "s"}, penalty fixed at -${
-                sub.penaltyPoints
-              }`
-            : ""
-        }.`,
+        text: `Submitted version 1${sub.isLate
+          ? ` - Late by ${sub.penaltyDays} day${sub.penaltyDays === 1 ? "" : "s"}, penalty fixed at -${sub.penaltyPoints
+          }`
+          : ""
+          }.`,
         versionNo: 1,
       },
     ];
@@ -692,10 +682,10 @@ export class DrizzleRepository implements SubmissionsRepository {
           r.review.supersedesReviewId
             ? `Super Admin revised decision to ${r.review.decision}.`
             : r.review.decision === "approved"
-            ? "Approved submission."
-            : r.review.decision === "rejected"
-            ? "Rejected submission."
-            : "Requested changes.",
+              ? "Approved submission."
+              : r.review.decision === "rejected"
+                ? "Rejected submission."
+                : "Requested changes.",
         versionNo: r.review.versionNo,
         decision: r.review.decision,
         pointsAwarded: r.review.pointsAwarded,
@@ -2280,7 +2270,6 @@ export class DrizzleRepository implements SubmissionsRepository {
     }));
   }
 
-<<<<<<< HEAD
   public async findParticipant(identifier: string): Promise<Participant | null> {
     const term = identifier.trim().toLowerCase();
     const rows = await this.db
@@ -2306,19 +2295,6 @@ export class DrizzleRepository implements SubmissionsRepository {
       totalPoints: p.totalPoints,
       rank: p.rank ?? 0,
     };
-  }
-
-  public async listParticipants(): Promise<Participant[]> {
-    const rows = await this.db.select().from(schema.participants).orderBy(schema.participants.name);
-    return rows.map((p: typeof schema.participants.$inferSelect) => ({
-      id: p.id,
-      name: p.name,
-      email: p.email,
-      rollNumber: p.rollNumber,
-      college: p.college,
-      totalPoints: p.totalPoints,
-      rank: p.rank ?? 0,
-    }));
   }
 
   public async registerParticipant(input: RegisterParticipantInput): Promise<Participant> {
@@ -2430,15 +2406,50 @@ export class DrizzleRepository implements SubmissionsRepository {
           .where(eq(schema.historyAuditLogs.entityId, sub.id))
           .orderBy(desc(schema.historyAuditLogs.timestamp));
 
-        historyItems = histRows.map((h: typeof schema.historyAuditLogs.$inferSelect) => ({
-          id: h.id,
-          type: h.action as any,
-          at: h.timestamp.toISOString(),
-          actor: h.changedBy,
-          text: h.reason || h.action,
-          versionNo: (h.newValue as any)?.versionNo || 1,
-          reason: h.reason || undefined,
-        }));
+        historyItems = histRows.map(
+          (h: typeof schema.historyAuditLogs.$inferSelect) => {
+            const newValue = h.newValue;
+
+            let versionNo = 1;
+
+            if (
+              typeof newValue === "object" &&
+              newValue !== null &&
+              !Array.isArray(newValue) &&
+              "versionNo" in newValue &&
+              typeof newValue.versionNo === "number"
+            ) {
+              versionNo = newValue.versionNo;
+            }
+
+            const historyTypes = [
+              "submitted",
+              "decision",
+              "assignment",
+              "reopened",
+              "resubmission",
+              "extension",
+            ] as const;
+
+            type HistoryType = (typeof historyTypes)[number];
+
+            const type: HistoryType = historyTypes.includes(
+              h.action as HistoryType
+            )
+              ? (h.action as HistoryType)
+              : "decision";
+
+            return {
+              id: h.id,
+              type,
+              at: h.timestamp.toISOString(),
+              actor: h.changedBy,
+              text: h.reason || h.action,
+              versionNo,
+              reason: h.reason || undefined,
+            };
+          }
+        );
 
         const lastDecision = historyItems.find((item) => Boolean(item.reason));
         reviewerFeedback = lastDecision?.reason || null;
@@ -2448,7 +2459,7 @@ export class DrizzleRepository implements SubmissionsRepository {
         task: {
           id: t.id,
           title: t.title,
-          type: t.type as any,
+          type: t.type,
           maxPoints: t.maxPoints,
           deadline: t.deadline.toISOString(),
           graceMinutes: t.graceMinutes,
@@ -2459,21 +2470,21 @@ export class DrizzleRepository implements SubmissionsRepository {
         },
         submission: sub
           ? {
-              id: sub.id,
-              status: sub.reviewStatus as any,
-              driveLink: sub.driveLink,
-              notes: sub.notes,
-              submittedAt: sub.submittedAt.toISOString(),
-              versionNo: sub.versionNo,
-              rev: sub.rev,
-              pointsAwarded: sub.pointsAwarded,
-              penaltyApplied: sub.penaltyApplied,
-              finalPoints: sub.finalPoints,
-              correctionDeadline: sub.correctionDeadline ? sub.correctionDeadline.toISOString() : null,
-              reviewerFeedback,
-              effectiveDeadline,
-              history: historyItems,
-            }
+            id: sub.id,
+            status: sub.reviewStatus,
+            driveLink: sub.driveLink,
+            notes: sub.notes,
+            submittedAt: sub.submittedAt.toISOString(),
+            versionNo: sub.versionNo,
+            rev: sub.rev,
+            pointsAwarded: sub.pointsAwarded,
+            penaltyApplied: sub.penaltyApplied,
+            finalPoints: sub.finalPoints,
+            correctionDeadline: sub.correctionDeadline ? sub.correctionDeadline.toISOString() : null,
+            reviewerFeedback,
+            effectiveDeadline,
+            history: historyItems,
+          }
           : null,
         timing: {
           isLate: penaltyRes.isLate,
@@ -2486,11 +2497,10 @@ export class DrizzleRepository implements SubmissionsRepository {
         canSubmit,
         canResubmit,
       });
-=======
-  // ──────────────────────────────────────────────────────────────────────────
-  // Participant Management (PRD §6.2 B, C & §9.5)
-  // ──────────────────────────────────────────────────────────────────────────
+    }
 
+    return result;
+  }
   public async listParticipants(query: ListParticipantsQuery = {}): Promise<ListParticipantsResult> {
     const page = Math.max(1, query.page || 1);
     const pageSize = Math.min(200, Math.max(1, query.pageSize || 50));
@@ -2865,13 +2875,10 @@ export class DrizzleRepository implements SubmissionsRepository {
           message: err instanceof Error ? err.message : "Unknown import error",
         });
       }
->>>>>>> 8d7a01145cd04ba558c7ffb90f81c10609620648
     }
 
     return result;
   }
-<<<<<<< HEAD
-=======
 
   public async updateParticipant(id: string, patch: Partial<CreateParticipantParams>, actor?: AdminUser): Promise<ParticipantDetail> {
     const [prev] = await this.db.select().from(schema.participants).where(eq(schema.participants.id, id));
@@ -3443,7 +3450,7 @@ export class DrizzleRepository implements SubmissionsRepository {
     }
 
     // Write to submissions table with auto-approval
-    const submissionId = `sub-${params.taskId}-${params.participantId}`;    const policySnapshot = {
+    const submissionId = `sub-${params.taskId}-${params.participantId}`; const policySnapshot = {
       deadline: now.toISOString(),
       graceMinutes: 0,
       penaltyRate: 0,
@@ -4061,5 +4068,4 @@ export class DrizzleRepository implements SubmissionsRepository {
   public async deleteAnnouncement(id: string): Promise<void> {
     await this.db.delete(schema.announcements).where(eq(schema.announcements.id, id));
   }
->>>>>>> 8d7a01145cd04ba558c7ffb90f81c10609620648
 }

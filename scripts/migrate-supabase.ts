@@ -35,18 +35,9 @@ async function runSafeMigration() {
     const foundVcScout = vcScoutTables.filter((t) => beforeNames.includes(t));
     console.log(`Protected VC Scout tables detected (${foundVcScout.length}/${vcScoutTables.length}):`, foundVcScout);
 
-<<<<<<< HEAD
-    // 2. Read the migration SQL file
-    const migrationFilePath = path.join(process.cwd(), "drizzle", "0000_naive_captain_britain.sql");
-    if (!fs.existsSync(migrationFilePath)) {
-      throw new Error(`Migration SQL file not found at: ${migrationFilePath}`);
-    }
-    const migrationSql = fs.readFileSync(migrationFilePath, "utf-8");
-=======
     // 2. Ensure schema cap exists and set search_path
     await sql.unsafe("CREATE SCHEMA IF NOT EXISTS cap;");
     await sql.unsafe("SET search_path TO cap, public;");
->>>>>>> 8d7a01145cd04ba558c7ffb90f81c10609620648
 
     // 3. Read migration SQL files from drizzle
     const migrationFiles = [

@@ -24,18 +24,15 @@ import type {
   LeaderboardStateInfo,
   ListParticipantsQuery,
   ListParticipantsResult,
-  ListSubmissionsQuery,
-  ListSubmissionsResult,
-<<<<<<< HEAD
-  ParticipantTaskView,
-  RegisterParticipantInput,
-=======
   MilestoneItem,
   ParticipantDetail,
   ProgramInfoItem,
   PublicContent,
   QuizDetail,
->>>>>>> 8d7a01145cd04ba558c7ffb90f81c10609620648
+  ListSubmissionsQuery,
+  ListSubmissionsResult,
+  ParticipantTaskView,
+  RegisterParticipantInput,
   ResubmitParams,
   ReviseDecisionParams,
   RevokeExtensionResult,
@@ -336,8 +333,8 @@ export class MemoryRepository implements SubmissionsRepository {
       query.taskId && query.taskId !== "all"
         ? this.tasks.filter((task) => task.id === query.taskId)
         : query.taskId === "all"
-        ? this.tasks
-        : this.tasks.slice(0, 1);
+          ? this.tasks
+          : this.tasks.slice(0, 1);
 
     // O(1) indexed lookup maps
     const subMap = new Map<string, Submission>();
@@ -366,8 +363,8 @@ export class MemoryRepository implements SubmissionsRepository {
           (query.reviewerId === "me"
             ? row.assignedReviewer?.id === user?.id
             : query.reviewerId === "unassigned"
-            ? !row.assignedReviewer
-            : row.assignedReviewer?.id === query.reviewerId)) &&
+              ? !row.assignedReviewer
+              : row.assignedReviewer?.id === query.reviewerId)) &&
         (!needle ||
           [
             row.participant.name,
@@ -480,13 +477,13 @@ export class MemoryRepository implements SubmissionsRepository {
       submission.versions && submission.versions.length > 0
         ? submission.versions
         : [
-            {
-              versionNo: submission.versionNo,
-              driveLink: submission.driveLink,
-              submittedAt: submission.submittedAt,
-              notes: submission.notes,
-            },
-          ];
+          {
+            versionNo: submission.versionNo,
+            driveLink: submission.driveLink,
+            submittedAt: submission.submittedAt,
+            notes: submission.notes,
+          },
+        ];
 
     const policy = submission?.policySnapshot ?? task;
     const effectiveMaxPoints = policy.maxPoints ?? task.maxPoints;
@@ -562,98 +559,98 @@ export class MemoryRepository implements SubmissionsRepository {
 
   public async recalculateTotalsAndRanks(): Promise<void> {
     const prevLock = this.recalcLock;
-    let releaseLock: () => void = () => {};
+    let releaseLock: () => void = () => { };
     this.recalcLock = new Promise<void>((resolve) => {
       releaseLock = resolve;
     });
     await prevLock;
     try {
       // 1. Pre-group approved submissions and score adjustments by participantId in a single pass O(S)
-    const approvedByParticipant = new Map<string, Submission[]>();
-    for (const s of this.submissions) {
-      if (s.status === "approved") {
-        let list = approvedByParticipant.get(s.participantId);
-        if (!list) {
-          list = [];
-          approvedByParticipant.set(s.participantId, list);
+      const approvedByParticipant = new Map<string, Submission[]>();
+      for (const s of this.submissions) {
+        if (s.status === "approved") {
+          let list = approvedByParticipant.get(s.participantId);
+          if (!list) {
+            list = [];
+            approvedByParticipant.set(s.participantId, list);
+          }
+          list.push(s);
         }
-        list.push(s);
       }
-    }
 
-    const adjustmentsByParticipant = new Map<string, number>();
-    for (const a of this.scoreAdjustments) {
-      adjustmentsByParticipant.set(
-        a.participantId,
-        (adjustmentsByParticipant.get(a.participantId) || 0) + a.pointsDelta
-      );
-    }
+      const adjustmentsByParticipant = new Map<string, number>();
+      for (const a of this.scoreAdjustments) {
+        adjustmentsByParticipant.set(
+          a.participantId,
+          (adjustmentsByParticipant.get(a.participantId) || 0) + a.pointsDelta
+        );
+      }
 
-    // 2. Compute totals and metrics in O(P)
-    const metrics = this.participants.map((participant) => {
-      const approved = approvedByParticipant.get(participant.id) || [];
-      const approvedPoints = approved.reduce((sum, s) => sum + (s.finalPoints ?? 0), 0);
-      const adjPoints = adjustmentsByParticipant.get(participant.id) || 0;
-      participant.totalPoints = approvedPoints + adjPoints;
+      // 2. Compute totals and metrics in O(P)
+      const metrics = this.participants.map((participant) => {
+        const approved = approvedByParticipant.get(participant.id) || [];
+        const approvedPoints = approved.reduce((sum, s) => sum + (s.finalPoints ?? 0), 0);
+        const adjPoints = adjustmentsByParticipant.get(participant.id) || 0;
+        participant.totalPoints = approvedPoints + adjPoints;
 
-      const tasksCompleted = approved.length;
-      const lateCount = approved.filter((s) => s.penaltyDays > 0).length;
-      const lastSubmissionAt =
-        approved.length > 0
-          ? approved.reduce(
+        const tasksCompleted = approved.length;
+        const lateCount = approved.filter((s) => s.penaltyDays > 0).length;
+        const lastSubmissionAt =
+          approved.length > 0
+            ? approved.reduce(
               (latest, s) =>
                 new Date(s.firstSubmittedAt).getTime() > new Date(latest).getTime()
                   ? s.firstSubmittedAt
                   : latest,
               approved[0].firstSubmittedAt
             )
-          : null;
-      const lastSubmissionMs = lastSubmissionAt ? new Date(lastSubmissionAt).getTime() : Infinity;
+            : null;
+        const lastSubmissionMs = lastSubmissionAt ? new Date(lastSubmissionAt).getTime() : Infinity;
 
-      return {
-        participant,
-        totalPoints: participant.totalPoints,
-        tasksCompleted,
-        lateCount,
-        lastSubmissionAt,
-        lastSubmissionMs,
-      };
-    });
+        return {
+          participant,
+          totalPoints: participant.totalPoints,
+          tasksCompleted,
+          lateCount,
+          lastSubmissionAt,
+          lastSubmissionMs,
+        };
+      });
 
-    // Sort by PRD §11 & Section 11.2 tie-break rules:
-    // 1. totalPoints DESC
-    // 2. tasksCompleted DESC
-    // 3. lateCount ASC (fewer late submissions is better)
-    // 4. lastSubmissionMs ASC (earlier submission is better)
-    // 5. name ASC for deterministic tie display
-    metrics.sort((a, b) => {
-      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
-      if (b.tasksCompleted !== a.tasksCompleted) return b.tasksCompleted - a.tasksCompleted;
-      if (a.lateCount !== b.lateCount) return a.lateCount - b.lateCount;
-      if (a.lastSubmissionMs !== b.lastSubmissionMs) return a.lastSubmissionMs - b.lastSubmissionMs;
-      if (a.participant.rollNumber !== b.participant.rollNumber) {
-        return a.participant.rollNumber.localeCompare(b.participant.rollNumber);
-      }
-      return a.participant.name.localeCompare(b.participant.name);
-    });
-
-    // Standard competition ranking: RANK() (1, 2, 2, 4)
-    let currentRank = 1;
-    for (let i = 0; i < metrics.length; i++) {
-      if (i > 0) {
-        const prev = metrics[i - 1];
-        const curr = metrics[i];
-        const isSame =
-          prev.totalPoints === curr.totalPoints &&
-          prev.tasksCompleted === curr.tasksCompleted &&
-          prev.lateCount === curr.lateCount &&
-          prev.lastSubmissionMs === curr.lastSubmissionMs;
-        if (!isSame) {
-          currentRank = i + 1;
+      // Sort by PRD §11 & Section 11.2 tie-break rules:
+      // 1. totalPoints DESC
+      // 2. tasksCompleted DESC
+      // 3. lateCount ASC (fewer late submissions is better)
+      // 4. lastSubmissionMs ASC (earlier submission is better)
+      // 5. name ASC for deterministic tie display
+      metrics.sort((a, b) => {
+        if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+        if (b.tasksCompleted !== a.tasksCompleted) return b.tasksCompleted - a.tasksCompleted;
+        if (a.lateCount !== b.lateCount) return a.lateCount - b.lateCount;
+        if (a.lastSubmissionMs !== b.lastSubmissionMs) return a.lastSubmissionMs - b.lastSubmissionMs;
+        if (a.participant.rollNumber !== b.participant.rollNumber) {
+          return a.participant.rollNumber.localeCompare(b.participant.rollNumber);
         }
+        return a.participant.name.localeCompare(b.participant.name);
+      });
+
+      // Standard competition ranking: RANK() (1, 2, 2, 4)
+      let currentRank = 1;
+      for (let i = 0; i < metrics.length; i++) {
+        if (i > 0) {
+          const prev = metrics[i - 1];
+          const curr = metrics[i];
+          const isSame =
+            prev.totalPoints === curr.totalPoints &&
+            prev.tasksCompleted === curr.tasksCompleted &&
+            prev.lateCount === curr.lateCount &&
+            prev.lastSubmissionMs === curr.lastSubmissionMs;
+          if (!isSame) {
+            currentRank = i + 1;
+          }
+        }
+        metrics[i].participant.rank = currentRank;
       }
-      metrics[i].participant.rank = currentRank;
-    }
     } finally {
       releaseLock();
     }
@@ -728,8 +725,8 @@ export class MemoryRepository implements SubmissionsRepository {
           params.decision === "approved"
             ? "Approved submission."
             : params.decision === "rejected"
-            ? "Rejected submission."
-            : "Requested changes.",
+              ? "Rejected submission."
+              : "Requested changes.",
         versionNo: submission.versionNo,
         decision: params.decision,
         pointsAwarded: awarded,
@@ -1146,13 +1143,11 @@ export class MemoryRepository implements SubmissionsRepository {
             type: "submitted",
             at: now.toISOString(),
             actor: participant.name,
-            text: `Submitted version 1${
-              penalty.isLate
-                ? ` - Late by ${penalty.penaltyDays} day${
-                    penalty.penaltyDays === 1 ? "" : "s"
-                  }, penalty fixed at -${penalty.penaltyPoints}`
+            text: `Submitted version 1${penalty.isLate
+                ? ` - Late by ${penalty.penaltyDays} day${penalty.penaltyDays === 1 ? "" : "s"
+                }, penalty fixed at -${penalty.penaltyPoints}`
                 : ""
-            }.`,
+              }.`,
             versionNo: 1,
           },
         ],
@@ -1471,12 +1466,12 @@ export class MemoryRepository implements SubmissionsRepository {
         const lastSub =
           approved.length > 0
             ? approved.reduce(
-                (latest, s) =>
-                  new Date(s.firstSubmittedAt).getTime() > new Date(latest).getTime()
-                    ? s.firstSubmittedAt
-                    : latest,
-                approved[0].firstSubmittedAt
-              )
+              (latest, s) =>
+                new Date(s.firstSubmittedAt).getTime() > new Date(latest).getTime()
+                  ? s.firstSubmittedAt
+                  : latest,
+              approved[0].firstSubmittedAt
+            )
             : null;
         const adjTotal = adjustmentsByParticipant.get(p.id) || 0;
 
@@ -1633,10 +1628,6 @@ export class MemoryRepository implements SubmissionsRepository {
     return found ? { ...found } : null;
   }
 
-  public async listParticipants(): Promise<Participant[]> {
-    return this.participants.map((p) => ({ ...p }));
-  }
-
   public async registerParticipant(input: RegisterParticipantInput): Promise<Participant> {
     return this.lock(async () => {
       const email = input.email.trim().toLowerCase();
@@ -1716,21 +1707,21 @@ export class MemoryRepository implements SubmissionsRepository {
         task: { ...task },
         submission: submission
           ? {
-              id: submission.id,
-              status: submission.status,
-              driveLink: submission.driveLink,
-              notes: submission.notes,
-              submittedAt: submission.submittedAt,
-              versionNo: submission.versionNo,
-              rev: submission.rev,
-              pointsAwarded: submission.pointsAwarded,
-              penaltyApplied: submission.penaltyApplied,
-              finalPoints: submission.finalPoints,
-              correctionDeadline: submission.correctionDeadline,
-              reviewerFeedback,
-              effectiveDeadline,
-              history: submission.history,
-            }
+            id: submission.id,
+            status: submission.status,
+            driveLink: submission.driveLink,
+            notes: submission.notes,
+            submittedAt: submission.submittedAt,
+            versionNo: submission.versionNo,
+            rev: submission.rev,
+            pointsAwarded: submission.pointsAwarded,
+            penaltyApplied: submission.penaltyApplied,
+            finalPoints: submission.finalPoints,
+            correctionDeadline: submission.correctionDeadline,
+            reviewerFeedback,
+            effectiveDeadline,
+            history: submission.history,
+          }
           : null,
         timing: {
           isLate: penaltyRes.isLate,

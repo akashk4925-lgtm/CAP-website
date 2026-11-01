@@ -41,11 +41,7 @@ export function getPrdSeedData() {
     title: "Startup Workshop & Assessment",
     type: "both",
     maxPoints: 100,
-<<<<<<< HEAD
-    deadline: new Date(Date.now() + 7 * 86400000).toISOString(),
-=======
     deadline: workshopDeadline,
->>>>>>> 8d7a01145cd04ba558c7ffb90f81c10609620648
     graceMinutes: 60,
     penaltyRate: 10,
     penaltyCap: 50,

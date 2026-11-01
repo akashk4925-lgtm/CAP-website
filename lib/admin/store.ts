@@ -115,7 +115,8 @@ export async function findParticipant(identifier: string) {
 
 export async function listParticipants() {
   const repo = getRepository();
-  return repo.listParticipants();
+  const result = await repo.listParticipants({ pageSize: 200, page: 1 });
+  return result.participants;
 }
 
 export async function registerParticipant(input: RegisterParticipantInput) {
