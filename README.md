@@ -167,10 +167,10 @@ npm run dev
 
 ## 🧪 Testing & Verification
 
-The test suite covers 140 automated tests across 23 suites including contract tests against both in-memory and real PostgreSQL (PGlite) instances:
+The test suite covers 170 automated tests across 32 suites including contract tests against both in-memory and real PostgreSQL (PGlite) instances:
 
 ```bash
-# Run all unit, contract, integration, and security tests (140 tests)
+# Run all unit, contract, integration, and security tests (170 tests)
 npm test
 
 # Run 5,000-record performance & load benchmark

@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { calculateFinalScore, calculateSubmissionPenalty, describePenalty } from "@/lib/review-engine/penalty-calculator";
 import { validateAndExtractDriveKey } from "@/lib/admin/validation";
 import { ApiError } from "@/lib/admin/auth";
-import type { AdminUser, QueueRow, Submission, Task } from "@/lib/admin/types";
+import type { AdminUser, Participant, QueueRow, Submission, Task } from "@/lib/admin/types";
 import { getPrdSeedData } from "@/lib/repositories/seed/prd-seed";
 import type {
   BulkApproveItemResult,
@@ -17,6 +17,8 @@ import type {
   LeaderboardStateInfo,
   ListSubmissionsQuery,
   ListSubmissionsResult,
+  ParticipantTaskView,
+  RegisterParticipantInput,
   ResubmitParams,
   ReviseDecisionParams,
   RevokeExtensionResult,
@@ -1475,6 +1477,130 @@ export class MemoryRepository implements SubmissionsRepository {
       await this.recalculateTotalsAndRanks();
 
       return adjustment;
+    });
+  }
+
+  public async findParticipant(identifier: string): Promise<Participant | null> {
+    const term = identifier.trim().toLowerCase();
+    const found = this.participants.find(
+      (p) =>
+        p.id.toLowerCase() === term ||
+        p.email.toLowerCase() === term ||
+        (p.rollNumber && p.rollNumber.toLowerCase() === term)
+    );
+    return found ? { ...found } : null;
+  }
+
+  public async listParticipants(): Promise<Participant[]> {
+    return this.participants.map((p) => ({ ...p }));
+  }
+
+  public async registerParticipant(input: RegisterParticipantInput): Promise<Participant> {
+    return this.lock(async () => {
+      const email = input.email.trim().toLowerCase();
+      const rollNumber = input.rollNumber.trim().toUpperCase();
+
+      const existingEmail = this.participants.find((p) => p.email.toLowerCase() === email);
+      if (existingEmail) {
+        throw new ApiError(409, "PARTICIPANT_EXISTS", "A participant with this email is already registered.");
+      }
+
+      const existingRoll = this.participants.find((p) => p.rollNumber?.toUpperCase() === rollNumber);
+      if (existingRoll) {
+        throw new ApiError(409, "PARTICIPANT_EXISTS", "A participant with this roll number is already registered.");
+      }
+
+      const nextNum = this.participants.length + 1;
+      const id = `CAP-${String(nextNum).padStart(4, "0")}`;
+
+      const newParticipant: Participant = {
+        id,
+        name: input.name.trim(),
+        email,
+        college: input.college.trim(),
+        rollNumber,
+        totalPoints: 0,
+        rank: (this.participants.length + 1) as unknown as number,
+      };
+
+      this.participants.push(newParticipant);
+      await this.recalculateTotalsAndRanks();
+      return { ...newParticipant };
+    });
+  }
+
+  public async getParticipantTasks(participantId: string): Promise<ParticipantTaskView[]> {
+    const participant = this.participants.find((p) => p.id === participantId);
+    if (!participant) {
+      throw new ApiError(404, "NOT_FOUND", "Participant was not found.");
+    }
+
+    const now = new Date();
+    return this.tasks.map((task) => {
+      const submission = this.submissions.find(
+        (s) => s.taskId === task.id && s.participantId === participantId
+      );
+
+      const activeExt = this.extensions.find(
+        (e) => e.taskId === task.id && e.participantId === participantId && !e.revokedAt
+      );
+      const effectiveDeadline = activeExt ? activeExt.newDeadline : task.deadline;
+
+      const evalTime = submission?.firstSubmittedAt ? new Date(submission.firstSubmittedAt) : now;
+      const penaltyRes = calculateSubmissionPenalty(evalTime, {
+        deadline: effectiveDeadline,
+        graceMinutes: task.graceMinutes,
+        penaltyRate: task.penaltyRate,
+        penaltyCap: task.penaltyCap,
+        maxPoints: task.maxPoints,
+        cutoffDays: task.cutoffDays,
+      });
+
+      const isCutoffPassed = now.getTime() > new Date(effectiveDeadline).getTime() + task.cutoffDays * 86_400_000;
+      const canSubmit = !submission && !isCutoffPassed && task.type !== "quiz";
+      const canResubmit =
+        submission?.status === "needs_changes" &&
+        (!submission.correctionDeadline || now.getTime() <= new Date(submission.correctionDeadline).getTime());
+
+      let reviewerFeedback: string | null = null;
+      if (submission?.history) {
+        const lastDecision = [...submission.history].reverse().find(
+          (h) => h.type === "decision" && (h.reason || h.text)
+        );
+        reviewerFeedback = lastDecision?.reason || lastDecision?.text || null;
+      }
+
+      return {
+        task: { ...task },
+        submission: submission
+          ? {
+              id: submission.id,
+              status: submission.status,
+              driveLink: submission.driveLink,
+              notes: submission.notes,
+              submittedAt: submission.submittedAt,
+              versionNo: submission.versionNo,
+              rev: submission.rev,
+              pointsAwarded: submission.pointsAwarded,
+              penaltyApplied: submission.penaltyApplied,
+              finalPoints: submission.finalPoints,
+              correctionDeadline: submission.correctionDeadline,
+              reviewerFeedback,
+              effectiveDeadline,
+              history: submission.history,
+            }
+          : null,
+        timing: {
+          isLate: penaltyRes.isLate,
+          badge: penaltyRes.timingBadge,
+          label: penaltyRes.timingLabel,
+          penaltyPercent: penaltyRes.penaltyPercent,
+          penaltyPoints: penaltyRes.penaltyPoints,
+          isLocked: penaltyRes.isLocked || isCutoffPassed,
+        },
+        canSubmit,
+        canResubmit,
+      };
     });
   }
 

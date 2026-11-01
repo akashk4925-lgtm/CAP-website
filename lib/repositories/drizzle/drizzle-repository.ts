@@ -2,7 +2,7 @@ import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "
 import { calculateFinalScore, calculateSubmissionPenalty, describePenalty } from "@/lib/review-engine/penalty-calculator";
 import { validateAndExtractDriveKey } from "@/lib/admin/validation";
 import { ApiError } from "@/lib/admin/auth";
-import type { AdminUser, PolicySnapshot, QueueRow, ReviewStatus } from "@/lib/admin/types";
+import type { AdminUser, Participant, PolicySnapshot, QueueRow, ReviewStatus, Submission } from "@/lib/admin/types";
 import * as schema from "@/lib/db/admin-schema";
 import { getPrdSeedData } from "@/lib/repositories/seed/prd-seed";
 import type {
@@ -18,6 +18,8 @@ import type {
   LeaderboardStateInfo,
   ListSubmissionsQuery,
   ListSubmissionsResult,
+  ParticipantTaskView,
+  RegisterParticipantInput,
   ResubmitParams,
   ReviseDecisionParams,
   RevokeExtensionResult,
@@ -2135,5 +2137,215 @@ export class DrizzleRepository implements SubmissionsRepository {
       adjustedByName: r.admin.name,
       adjustedAt: r.adj.adjustedAt.toISOString(),
     }));
+  }
+
+  public async findParticipant(identifier: string): Promise<Participant | null> {
+    const term = identifier.trim().toLowerCase();
+    const rows = await this.db
+      .select()
+      .from(schema.participants)
+      .where(
+        or(
+          ilike(schema.participants.id, term),
+          ilike(schema.participants.email, term),
+          ilike(schema.participants.rollNumber, term)
+        )
+      )
+      .limit(1);
+
+    if (rows.length === 0) return null;
+    const p = rows[0];
+    return {
+      id: p.id,
+      name: p.name,
+      email: p.email,
+      rollNumber: p.rollNumber,
+      college: p.college,
+      totalPoints: p.totalPoints,
+      rank: p.rank ?? 0,
+    };
+  }
+
+  public async listParticipants(): Promise<Participant[]> {
+    const rows = await this.db.select().from(schema.participants).orderBy(schema.participants.name);
+    return rows.map((p: typeof schema.participants.$inferSelect) => ({
+      id: p.id,
+      name: p.name,
+      email: p.email,
+      rollNumber: p.rollNumber,
+      college: p.college,
+      totalPoints: p.totalPoints,
+      rank: p.rank ?? 0,
+    }));
+  }
+
+  public async registerParticipant(input: RegisterParticipantInput): Promise<Participant> {
+    return this.runInTx(async (txRepo) => {
+      const email = input.email.trim().toLowerCase();
+      const rollNumber = input.rollNumber.trim().toUpperCase();
+
+      const existing = await txRepo.db
+        .select()
+        .from(schema.participants)
+        .where(
+          or(
+            ilike(schema.participants.email, email),
+            ilike(schema.participants.rollNumber, rollNumber)
+          )
+        )
+        .limit(1);
+
+      if (existing.length > 0) {
+        throw new ApiError(409, "PARTICIPANT_EXISTS", "A participant with this email or roll number already exists.");
+      }
+
+      const totalCountRes = await txRepo.db.select({ count: sql<number>`count(*)` }).from(schema.participants);
+      const nextNum = Number(totalCountRes[0]?.count || 0) + 1;
+      const id = `CAP-${String(nextNum).padStart(4, "0")}`;
+
+      await txRepo.db.insert(schema.participants).values({
+        id,
+        name: input.name.trim(),
+        email,
+        college: input.college.trim(),
+        rollNumber,
+        branch: input.branch?.trim() || null,
+        year: input.year?.trim() || null,
+        phone: input.phone?.trim() || null,
+        totalPoints: 0,
+        rank: null,
+      });
+
+      await txRepo.recalculateTotalsAndRanks();
+
+      return {
+        id,
+        name: input.name.trim(),
+        email,
+        college: input.college.trim(),
+        rollNumber,
+        totalPoints: 0,
+        rank: nextNum,
+      };
+    });
+  }
+
+  public async getParticipantTasks(participantId: string): Promise<ParticipantTaskView[]> {
+    const part = await this.findParticipant(participantId);
+    if (!part) {
+      throw new ApiError(404, "NOT_FOUND", "Participant was not found.");
+    }
+
+    const tasksRows = await this.db.select().from(schema.tasks).orderBy(schema.tasks.title);
+    const now = new Date();
+
+    const result: ParticipantTaskView[] = [];
+
+    for (const t of tasksRows) {
+      const subRows = await this.db
+        .select()
+        .from(schema.submissions)
+        .where(and(eq(schema.submissions.taskId, t.id), eq(schema.submissions.participantId, participantId)))
+        .limit(1);
+
+      const extRows = await this.db
+        .select()
+        .from(schema.extensions)
+        .where(
+          and(
+            eq(schema.extensions.taskId, t.id),
+            eq(schema.extensions.participantId, participantId),
+            isNull(schema.extensions.revokedAt)
+          )
+        )
+        .limit(1);
+
+      const effectiveDeadline = extRows[0] ? extRows[0].newDeadline.toISOString() : t.deadline.toISOString();
+      const sub = subRows[0] || null;
+
+      const evalTime = sub?.firstSubmittedAt ? sub.firstSubmittedAt : now;
+      const penaltyRes = calculateSubmissionPenalty(evalTime, {
+        deadline: effectiveDeadline,
+        graceMinutes: t.graceMinutes,
+        penaltyRate: t.penaltyRate,
+        penaltyCap: t.penaltyCap,
+        maxPoints: t.maxPoints,
+        cutoffDays: t.cutoffDays,
+      });
+
+      const isCutoffPassed = now.getTime() > new Date(effectiveDeadline).getTime() + t.cutoffDays * 86_400_000;
+      const canSubmit = !sub && !isCutoffPassed && t.type !== "quiz";
+      const canResubmit =
+        sub?.reviewStatus === "needs_changes" &&
+        (!sub.correctionDeadline || now.getTime() <= sub.correctionDeadline.getTime());
+
+      let reviewerFeedback: string | null = null;
+      let historyItems: Submission["history"] = [];
+      if (sub) {
+        const histRows = await this.db
+          .select()
+          .from(schema.historyAuditLogs)
+          .where(eq(schema.historyAuditLogs.entityId, sub.id))
+          .orderBy(desc(schema.historyAuditLogs.timestamp));
+
+        historyItems = histRows.map((h: typeof schema.historyAuditLogs.$inferSelect) => ({
+          id: h.id,
+          type: h.action as any,
+          at: h.timestamp.toISOString(),
+          actor: h.changedBy,
+          text: h.reason || h.action,
+          versionNo: (h.newValue as any)?.versionNo || 1,
+          reason: h.reason || undefined,
+        }));
+
+        const lastDecision = historyItems.find((item) => Boolean(item.reason));
+        reviewerFeedback = lastDecision?.reason || null;
+      }
+
+      result.push({
+        task: {
+          id: t.id,
+          title: t.title,
+          type: t.type as any,
+          maxPoints: t.maxPoints,
+          deadline: t.deadline.toISOString(),
+          graceMinutes: t.graceMinutes,
+          penaltyRate: t.penaltyRate,
+          penaltyCap: t.penaltyCap,
+          cutoffDays: t.cutoffDays,
+          correctionWindowDays: t.correctionWindowDays,
+        },
+        submission: sub
+          ? {
+              id: sub.id,
+              status: sub.reviewStatus as any,
+              driveLink: sub.driveLink,
+              notes: sub.notes,
+              submittedAt: sub.submittedAt.toISOString(),
+              versionNo: sub.versionNo,
+              rev: sub.rev,
+              pointsAwarded: sub.pointsAwarded,
+              penaltyApplied: sub.penaltyApplied,
+              finalPoints: sub.finalPoints,
+              correctionDeadline: sub.correctionDeadline ? sub.correctionDeadline.toISOString() : null,
+              reviewerFeedback,
+              effectiveDeadline,
+              history: historyItems,
+            }
+          : null,
+        timing: {
+          isLate: penaltyRes.isLate,
+          badge: penaltyRes.timingBadge,
+          label: penaltyRes.timingLabel,
+          penaltyPercent: penaltyRes.penaltyPercent,
+          penaltyPoints: penaltyRes.penaltyPoints,
+          isLocked: penaltyRes.isLocked || isCutoffPassed,
+        },
+        canSubmit,
+        canResubmit,
+      });
+    }
+
+    return result;
   }
 }

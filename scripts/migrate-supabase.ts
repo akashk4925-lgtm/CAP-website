@@ -36,7 +36,7 @@ async function runSafeMigration() {
     console.log(`Protected VC Scout tables detected (${foundVcScout.length}/${vcScoutTables.length}):`, foundVcScout);
 
     // 2. Read the migration SQL file
-    const migrationFilePath = path.join(process.cwd(), "drizzle", "0000_absent_ma_gnuci.sql");
+    const migrationFilePath = path.join(process.cwd(), "drizzle", "0000_naive_captain_britain.sql");
     if (!fs.existsSync(migrationFilePath)) {
       throw new Error(`Migration SQL file not found at: ${migrationFilePath}`);
     }
