@@ -1,58 +1,55 @@
-/**
- * POST /api/participant/login
- *
- * Authenticates a participant by email (+ optional rollNumber) and issues
- * a signed session cookie (cap_participant_session). PRD 8.2 / 6.3.
- */
-import { cookies } from "next/headers";
-import { getRepository } from "@/lib/repositories";
-import { parseStrict, loginParticipantSchema } from "@/lib/admin/schemas";
-import {
-  createParticipantSessionToken,
-  PARTICIPANT_COOKIE_NAME,
-  PARTICIPANT_SESSION_DURATION_MS,
-} from "@/lib/admin/session";
-import { jsonError, ensureDynamicConnection, readBody } from "@/lib/admin/http";
+import { assertSameOrigin, ensureDynamicConnection, jsonError, readBody } from "@/lib/admin/http";
+import { checkRateLimit, getClientIp } from "@/lib/admin/rate-limit";
+import { parseStrict, participantLoginSchema } from "@/lib/admin/schemas";
+import { findParticipant } from "@/lib/admin/store";
+import { createParticipantSessionToken, PARTICIPANT_COOKIE_NAME } from "@/lib/admin/session";
 import { ApiError } from "@/lib/admin/auth";
+import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   await ensureDynamicConnection();
   try {
-    const body = await readBody(request);
-    const data = parseStrict(loginParticipantSchema, body);
+    assertSameOrigin(request);
 
-    const repo = getRepository();
-    const participant = await repo.getParticipantByEmail(data.email);
+    const clientIp = getClientIp(request);
+    const rl = checkRateLimit(`part_login:${clientIp}`, 20, 60 * 1000);
+    if (!rl.success) {
+      throw new ApiError(429, "RATE_LIMITED", "Too many login attempts. Please wait.");
+    }
 
+    const rawBody = await readBody(request);
+    const data = parseStrict(participantLoginSchema, rawBody);
+
+    const participant = await findParticipant(data.identifier);
     if (!participant) {
-      throw new ApiError(404, "NOT_FOUND", "No account found with this email address.");
-    }
-
-    if (participant.deletedAt) {
-      throw new ApiError(403, "FORBIDDEN", "This account has been deactivated. Please contact support.");
-    }
-
-    // Optional rollNumber check as additional factor
-    if (data.rollNumber && participant.rollNumber !== data.rollNumber) {
-      throw new ApiError(401, "UNAUTHORIZED", "Roll number does not match our records.");
+      throw new ApiError(
+        404,
+        "NOT_FOUND",
+        "No registered ambassador found with this Email, Roll Number or ID."
+      );
     }
 
     const token = createParticipantSessionToken({
-      participantId: participant.id,
+      id: participant.id,
       email: participant.email,
       name: participant.name,
     });
 
-    const cookieStore = await cookies();
-    cookieStore.set(PARTICIPANT_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: Math.floor(PARTICIPANT_SESSION_DURATION_MS / 1000),
+    const response = NextResponse.json({
+      ok: true,
+      participant,
+      token,
     });
 
-    return Response.json({ participant });
+    response.cookies.set(PARTICIPANT_COOKIE_NAME, token, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60,
+      secure: process.env.NODE_ENV === "production",
+    });
+
+    return response;
   } catch (error) {
     return jsonError(error);
   }

@@ -154,6 +154,24 @@ export const personaSwitchSchema = z
   })
   .strict();
 
+export const participantRegisterSchema = z
+  .object({
+    name: z.string().trim().min(2, "Name must be at least 2 characters").max(100),
+    email: z.string().trim().email("Invalid email address").max(120),
+    college: z.string().trim().min(2, "College must be at least 2 characters").max(150),
+    rollNumber: z.string().trim().min(2, "Roll number must be at least 2 characters").max(50),
+    branch: z.string().trim().max(100).optional().nullable(),
+    year: z.string().trim().max(20).optional().nullable(),
+    phone: z.string().trim().max(20).optional().nullable(),
+  })
+  .strict();
+
+export const participantLoginSchema = z
+  .object({
+    identifier: z.string().trim().min(2, "Email, Roll Number or Participant ID required").max(120),
+  })
+  .strict();
+
 export const addAdminUserSchema = z
   .object({
     email: z.string().email("Valid email is required").max(255),

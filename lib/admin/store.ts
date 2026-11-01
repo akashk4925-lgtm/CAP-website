@@ -5,6 +5,7 @@ import type {
   CreateScoreAdjustmentParams,
   GrantExtensionParams,
   ListSubmissionsQuery,
+  RegisterParticipantInput,
   ResubmitParams,
   ReviseDecisionParams,
   SubmitParams,
@@ -105,6 +106,27 @@ export async function publishLeaderboard(isFinal: boolean, actor: AdminUser) {
 export async function createScoreAdjustment(params: CreateScoreAdjustmentParams, actor: AdminUser) {
   const repo = getRepository();
   return repo.createScoreAdjustment(params, actor);
+}
+
+export async function findParticipant(identifier: string) {
+  const repo = getRepository();
+  return repo.findParticipant(identifier);
+}
+
+export async function listParticipants() {
+  const repo = getRepository();
+  const result = await repo.listParticipants({ pageSize: 200, page: 1 });
+  return result.participants;
+}
+
+export async function registerParticipant(input: RegisterParticipantInput) {
+  const repo = getRepository();
+  return repo.registerParticipant(input);
+}
+
+export async function getParticipantTasks(participantId: string) {
+  const repo = getRepository();
+  return repo.getParticipantTasks(participantId);
 }
 
 export async function listScoreAdjustments(participantId?: string) {

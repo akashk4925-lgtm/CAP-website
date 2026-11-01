@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sq
 import { calculateFinalScore, calculateSubmissionPenalty, describePenalty } from "@/lib/review-engine/penalty-calculator";
 import { validateAndExtractDriveKey } from "@/lib/admin/validation";
 import { ApiError } from "@/lib/admin/auth";
-import type { AdminUser, PolicySnapshot, QueueRow, ReviewStatus, Task } from "@/lib/admin/types";
+import type { AdminUser, Participant, PolicySnapshot, QueueRow, ReviewStatus, Submission, Task } from "@/lib/admin/types";
 import * as schema from "@/lib/db/admin-schema";
 import { getPrdSeedData } from "@/lib/repositories/seed/prd-seed";
 import type {
@@ -24,15 +24,17 @@ import type {
   LeaderboardResult,
   LeaderboardStateInfo,
   ListParticipantsQuery,
+  QuizDetail,
+  QuizQuestion,
+  PublicContent,
+  ProgramInfoItem,
+  ParticipantDetail,
+  MilestoneItem,
   ListParticipantsResult,
   ListSubmissionsQuery,
   ListSubmissionsResult,
-  MilestoneItem,
-  ParticipantDetail,
-  ProgramInfoItem,
-  PublicContent,
-  QuizDetail,
-  QuizQuestion,
+  ParticipantTaskView,
+  RegisterParticipantInput,
   ResubmitParams,
   ReviseDecisionParams,
   RevokeExtensionResult,
@@ -45,10 +47,9 @@ import type {
   TaskReport,
   TestimonialItem,
 } from "@/lib/repositories/types";
-
 export class DrizzleRepository implements SubmissionsRepository {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(private db: any, private isTx: boolean = false) {}
+  constructor(private db: any, private isTx: boolean = false) { }
 
   public async withTransaction<T>(fn: (repo: SubmissionsRepository) => Promise<T>): Promise<T> {
     if (this.isTx) {
@@ -469,12 +470,12 @@ export class DrizzleRepository implements SubmissionsRepository {
 
       const timing = isSubmitted
         ? {
-            isLate: sub.isLate,
-            badge: sub.isLate ? `Late ${sub.penaltyDays}d` : "On time",
-            label: sub.isLate
-              ? `Late by ${sub.penaltyDays} day${sub.penaltyDays === 1 ? "" : "s"}`
-              : "On time",
-          }
+          isLate: sub.isLate,
+          badge: sub.isLate ? `Late ${sub.penaltyDays}d` : "On time",
+          label: sub.isLate
+            ? `Late by ${sub.penaltyDays} day${sub.penaltyDays === 1 ? "" : "s"}`
+            : "On time",
+        }
         : { isLate: false, badge: "Not submitted", label: "Not submitted" };
 
       const rowStatus: ReviewStatus | "missing" = isSubmitted ? sub.reviewStatus : "missing";
@@ -630,11 +631,11 @@ export class DrizzleRepository implements SubmissionsRepository {
     const [task] = await this.db.select().from(schema.tasks).where(eq(schema.tasks.id, sub.taskId));
     const reviewer = sub.assignedReviewerId
       ? (
-          await this.db
-            .select()
-            .from(schema.adminUsers)
-            .where(eq(schema.adminUsers.id, sub.assignedReviewerId))
-        )[0]
+        await this.db
+          .select()
+          .from(schema.adminUsers)
+          .where(eq(schema.adminUsers.id, sub.assignedReviewerId))
+      )[0]
       : null;
 
     const versions = await this.db
@@ -661,13 +662,11 @@ export class DrizzleRepository implements SubmissionsRepository {
         type: "submitted",
         at: sub.firstSubmittedAt.toISOString(),
         actor: part.name,
-        text: `Submitted version 1${
-          sub.isLate
-            ? ` - Late by ${sub.penaltyDays} day${sub.penaltyDays === 1 ? "" : "s"}, penalty fixed at -${
-                sub.penaltyPoints
-              }`
-            : ""
-        }.`,
+        text: `Submitted version 1${sub.isLate
+          ? ` - Late by ${sub.penaltyDays} day${sub.penaltyDays === 1 ? "" : "s"}, penalty fixed at -${sub.penaltyPoints
+          }`
+          : ""
+          }.`,
         versionNo: 1,
       },
     ];
@@ -683,10 +682,10 @@ export class DrizzleRepository implements SubmissionsRepository {
           r.review.supersedesReviewId
             ? `Super Admin revised decision to ${r.review.decision}.`
             : r.review.decision === "approved"
-            ? "Approved submission."
-            : r.review.decision === "rejected"
-            ? "Rejected submission."
-            : "Requested changes.",
+              ? "Approved submission."
+              : r.review.decision === "rejected"
+                ? "Rejected submission."
+                : "Requested changes.",
         versionNo: r.review.versionNo,
         decision: r.review.decision,
         pointsAwarded: r.review.pointsAwarded,
@@ -2271,10 +2270,237 @@ export class DrizzleRepository implements SubmissionsRepository {
     }));
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Participant Management (PRD §6.2 B, C & §9.5)
-  // ──────────────────────────────────────────────────────────────────────────
+  public async findParticipant(identifier: string): Promise<Participant | null> {
+    const term = identifier.trim().toLowerCase();
+    const rows = await this.db
+      .select()
+      .from(schema.participants)
+      .where(
+        or(
+          ilike(schema.participants.id, term),
+          ilike(schema.participants.email, term),
+          ilike(schema.participants.rollNumber, term)
+        )
+      )
+      .limit(1);
 
+    if (rows.length === 0) return null;
+    const p = rows[0];
+    return {
+      id: p.id,
+      name: p.name,
+      email: p.email,
+      rollNumber: p.rollNumber,
+      college: p.college,
+      totalPoints: p.totalPoints,
+      rank: p.rank ?? 0,
+    };
+  }
+
+  public async registerParticipant(input: RegisterParticipantInput): Promise<Participant> {
+    return this.runInTx(async (txRepo) => {
+      const email = input.email.trim().toLowerCase();
+      const rollNumber = input.rollNumber.trim().toUpperCase();
+
+      const existing = await txRepo.db
+        .select()
+        .from(schema.participants)
+        .where(
+          or(
+            ilike(schema.participants.email, email),
+            ilike(schema.participants.rollNumber, rollNumber)
+          )
+        )
+        .limit(1);
+
+      if (existing.length > 0) {
+        throw new ApiError(409, "PARTICIPANT_EXISTS", "A participant with this email or roll number already exists.");
+      }
+
+      const totalCountRes = await txRepo.db.select({ count: sql<number>`count(*)` }).from(schema.participants);
+      const nextNum = Number(totalCountRes[0]?.count || 0) + 1;
+      const id = `CAP-${String(nextNum).padStart(4, "0")}`;
+
+      await txRepo.db.insert(schema.participants).values({
+        id,
+        name: input.name.trim(),
+        email,
+        college: input.college.trim(),
+        rollNumber,
+        branch: input.branch?.trim() || null,
+        year: input.year?.trim() || null,
+        phone: input.phone?.trim() || null,
+        totalPoints: 0,
+        rank: null,
+      });
+
+      await txRepo.recalculateTotalsAndRanks();
+
+      return {
+        id,
+        name: input.name.trim(),
+        email,
+        college: input.college.trim(),
+        rollNumber,
+        totalPoints: 0,
+        rank: nextNum,
+      };
+    });
+  }
+
+  public async getParticipantTasks(participantId: string): Promise<ParticipantTaskView[]> {
+    const part = await this.findParticipant(participantId);
+    if (!part) {
+      throw new ApiError(404, "NOT_FOUND", "Participant was not found.");
+    }
+
+    const tasksRows = await this.db.select().from(schema.tasks).orderBy(schema.tasks.title);
+    const now = new Date();
+
+    const result: ParticipantTaskView[] = [];
+
+    for (const t of tasksRows) {
+      const subRows = await this.db
+        .select()
+        .from(schema.submissions)
+        .where(and(eq(schema.submissions.taskId, t.id), eq(schema.submissions.participantId, participantId)))
+        .limit(1);
+
+      const extRows = await this.db
+        .select()
+        .from(schema.extensions)
+        .where(
+          and(
+            eq(schema.extensions.taskId, t.id),
+            eq(schema.extensions.participantId, participantId),
+            isNull(schema.extensions.revokedAt)
+          )
+        )
+        .limit(1);
+
+      const effectiveDeadline = extRows[0] ? extRows[0].newDeadline.toISOString() : t.deadline.toISOString();
+      const sub = subRows[0] || null;
+
+      const evalTime = sub?.firstSubmittedAt ? sub.firstSubmittedAt : now;
+      const penaltyRes = calculateSubmissionPenalty(evalTime, {
+        deadline: effectiveDeadline,
+        graceMinutes: t.graceMinutes,
+        penaltyRate: t.penaltyRate,
+        penaltyCap: t.penaltyCap,
+        maxPoints: t.maxPoints,
+        cutoffDays: t.cutoffDays,
+      });
+
+      const isCutoffPassed = now.getTime() > new Date(effectiveDeadline).getTime() + t.cutoffDays * 86_400_000;
+      const canSubmit = !sub && !isCutoffPassed && t.type !== "quiz";
+      const canResubmit =
+        sub?.reviewStatus === "needs_changes" &&
+        (!sub.correctionDeadline || now.getTime() <= sub.correctionDeadline.getTime());
+
+      let reviewerFeedback: string | null = null;
+      let historyItems: Submission["history"] = [];
+      if (sub) {
+        const histRows = await this.db
+          .select()
+          .from(schema.historyAuditLogs)
+          .where(eq(schema.historyAuditLogs.entityId, sub.id))
+          .orderBy(desc(schema.historyAuditLogs.timestamp));
+
+        historyItems = histRows.map(
+          (h: typeof schema.historyAuditLogs.$inferSelect) => {
+            const newValue = h.newValue;
+
+            let versionNo = 1;
+
+            if (
+              typeof newValue === "object" &&
+              newValue !== null &&
+              !Array.isArray(newValue) &&
+              "versionNo" in newValue &&
+              typeof newValue.versionNo === "number"
+            ) {
+              versionNo = newValue.versionNo;
+            }
+
+            const historyTypes = [
+              "submitted",
+              "decision",
+              "assignment",
+              "reopened",
+              "resubmission",
+              "extension",
+            ] as const;
+
+            type HistoryType = (typeof historyTypes)[number];
+
+            const type: HistoryType = historyTypes.includes(
+              h.action as HistoryType
+            )
+              ? (h.action as HistoryType)
+              : "decision";
+
+            return {
+              id: h.id,
+              type,
+              at: h.timestamp.toISOString(),
+              actor: h.changedBy,
+              text: h.reason || h.action,
+              versionNo,
+              reason: h.reason || undefined,
+            };
+          }
+        );
+
+        const lastDecision = historyItems.find((item) => Boolean(item.reason));
+        reviewerFeedback = lastDecision?.reason || null;
+      }
+
+      result.push({
+        task: {
+          id: t.id,
+          title: t.title,
+          type: t.type,
+          maxPoints: t.maxPoints,
+          deadline: t.deadline.toISOString(),
+          graceMinutes: t.graceMinutes,
+          penaltyRate: t.penaltyRate,
+          penaltyCap: t.penaltyCap,
+          cutoffDays: t.cutoffDays,
+          correctionWindowDays: t.correctionWindowDays,
+        },
+        submission: sub
+          ? {
+            id: sub.id,
+            status: sub.reviewStatus,
+            driveLink: sub.driveLink,
+            notes: sub.notes,
+            submittedAt: sub.submittedAt.toISOString(),
+            versionNo: sub.versionNo,
+            rev: sub.rev,
+            pointsAwarded: sub.pointsAwarded,
+            penaltyApplied: sub.penaltyApplied,
+            finalPoints: sub.finalPoints,
+            correctionDeadline: sub.correctionDeadline ? sub.correctionDeadline.toISOString() : null,
+            reviewerFeedback,
+            effectiveDeadline,
+            history: historyItems,
+          }
+          : null,
+        timing: {
+          isLate: penaltyRes.isLate,
+          badge: penaltyRes.timingBadge,
+          label: penaltyRes.timingLabel,
+          penaltyPercent: penaltyRes.penaltyPercent,
+          penaltyPoints: penaltyRes.penaltyPoints,
+          isLocked: penaltyRes.isLocked || isCutoffPassed,
+        },
+        canSubmit,
+        canResubmit,
+      });
+    }
+
+    return result;
+  }
   public async listParticipants(query: ListParticipantsQuery = {}): Promise<ListParticipantsResult> {
     const page = Math.max(1, query.page || 1);
     const pageSize = Math.min(200, Math.max(1, query.pageSize || 50));
@@ -3224,7 +3450,7 @@ export class DrizzleRepository implements SubmissionsRepository {
     }
 
     // Write to submissions table with auto-approval
-    const submissionId = `sub-${params.taskId}-${params.participantId}`;    const policySnapshot = {
+    const submissionId = `sub-${params.taskId}-${params.participantId}`; const policySnapshot = {
       deadline: now.toISOString(),
       graceMinutes: 0,
       penaltyRate: 0,

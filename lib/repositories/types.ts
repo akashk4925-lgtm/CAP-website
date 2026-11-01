@@ -1,4 +1,4 @@
-import type { AdminUser, Decision, PolicySnapshot, QueueRow, Submission, Task } from "@/lib/admin/types";
+import type { AdminUser, Decision, Participant, PolicySnapshot, QueueRow, ReviewStatus, Submission, Task } from "@/lib/admin/types";
 
 export type { PolicySnapshot };
 
@@ -198,6 +198,46 @@ export interface LeaderboardStateInfo {
   reason: string | null;
   resultsAnnouncedAt: string | null;
   lastPublishedAt?: string | null;
+}
+
+export interface RegisterParticipantInput {
+  name: string;
+  email: string;
+  college: string;
+  rollNumber: string;
+  branch?: string;
+  year?: string;
+  phone?: string;
+}
+
+export interface ParticipantTaskView {
+  task: Task;
+  submission: {
+    id: string;
+    status: ReviewStatus;
+    driveLink: string;
+    notes?: string | null;
+    submittedAt: string;
+    versionNo: number;
+    rev: number;
+    pointsAwarded: number | null;
+    penaltyApplied: number | null;
+    finalPoints: number | null;
+    correctionDeadline: string | null;
+    reviewerFeedback?: string | null;
+    effectiveDeadline: string;
+    history: Submission["history"];
+  } | null;
+  timing: {
+    isLate: boolean;
+    badge: string;
+    label: string;
+    penaltyPercent: number;
+    penaltyPoints: number;
+    isLocked: boolean;
+  };
+  canSubmit: boolean;
+  canResubmit: boolean;
 }
 
 export interface LeaderboardResult {
@@ -463,6 +503,9 @@ export interface SubmissionsRepository {
   publishLeaderboard(isFinal: boolean, actor: AdminUser): Promise<LeaderboardStateInfo>;
   createScoreAdjustment(params: CreateScoreAdjustmentParams, actor: AdminUser): Promise<ScoreAdjustmentDetail>;
   listScoreAdjustments(participantId?: string): Promise<ScoreAdjustmentDetail[]>;
+  findParticipant(identifier: string): Promise<Participant | null>;
+  registerParticipant(input: RegisterParticipantInput): Promise<Participant>;
+  getParticipantTasks(participantId: string): Promise<ParticipantTaskView[]>;
   seed?(): Promise<void>;
   withTransaction<T>(fn: (repo: SubmissionsRepository) => Promise<T>): Promise<T>;
 
