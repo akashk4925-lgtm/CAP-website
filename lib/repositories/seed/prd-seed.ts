@@ -1,5 +1,6 @@
 import { calculateFinalScore, calculateSubmissionPenalty, describePenalty } from "@/lib/review-engine/penalty-calculator";
 import type { AdminUser, Decision, HistoryItem, Participant, Submission, Task } from "@/lib/admin/types";
+import { getCmsSeedData } from "./cms-seed";
 
 export function getPrdSeedData() {
   const poster: Task = {
@@ -13,6 +14,8 @@ export function getPrdSeedData() {
     penaltyCap: 50,
     cutoffDays: 3,
     correctionWindowDays: 3,
+    assignedTo: "all",
+    state: "Live",
   };
 
   const quiz: Task = {
@@ -26,20 +29,32 @@ export function getPrdSeedData() {
     penaltyCap: 50,
     cutoffDays: 3,
     correctionWindowDays: 3,
+    assignedTo: "all",
+    state: "Live",
   };
+
+  // Use a far-future deadline so cutoff/deadline tests always pass regardless of run date
+  const workshopDeadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
 
   const workshop: Task = {
     id: "task-workshop",
     title: "Startup Workshop & Assessment",
     type: "both",
     maxPoints: 100,
+<<<<<<< HEAD
     deadline: new Date(Date.now() + 7 * 86400000).toISOString(),
+=======
+    deadline: workshopDeadline,
+>>>>>>> 8d7a01145cd04ba558c7ffb90f81c10609620648
     graceMinutes: 60,
     penaltyRate: 10,
     penaltyCap: 50,
     cutoffDays: 3,
     correctionWindowDays: 3,
+    assignedTo: "all",
+    state: "Live",
   };
+
 
   const tasks: Task[] = [poster, quiz, workshop];
 
@@ -268,5 +283,6 @@ export function getPrdSeedData() {
     participants,
     taskAssignments,
     submissions,
+    cms: getCmsSeedData(),
   };
 }
