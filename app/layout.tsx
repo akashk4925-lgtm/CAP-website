@@ -26,7 +26,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "Campus Ambassador Assembly | E-Cell IIT BHU",
+  title: "Campus Ambassador Program | E-Cell IIT BHU",
   description:
     "An independent, Avengers-inspired campus ambassador initiative. Discover the program, explore missions and get ready to assemble your campus.",
 };

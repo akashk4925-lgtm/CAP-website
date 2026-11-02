@@ -1105,10 +1105,12 @@ body{
 /* ---------- benefit flip cards ---------- */
 
 .benefit-card-face h3{
-  font-family:var(--font-ui);
-  font-size:clamp(15px,1.2vw,19px);
-  font-weight:800;
-  line-height:1.28;
+  font-family:var(--font-serif);
+  font-size:clamp(14px,1.15vw,18px);
+  font-weight:600;
+  line-height:1.3;
+  letter-spacing:.045em;
+  text-transform:uppercase;
 }
 
 .benefit-card-number{
@@ -1220,10 +1222,11 @@ body{
 
 /* Footer mission line: bolder and more legible than the old muted 13px. */
 .footer-top>p{
-  color:#c9bfa6;
-  font-weight:600;
-  letter-spacing:.01em;
-  line-height:1.75;
+  color:#e2d8bf;
+  font-size:13.5px;
+  font-weight:700;
+  letter-spacing:.015em;
+  line-height:1.7;
 }
 
 /* The bottom disclaimer strip was removed, so keep padding under the rule. */
