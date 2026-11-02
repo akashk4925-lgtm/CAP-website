@@ -116,7 +116,7 @@ button:focus-visible,a:focus-visible{outline-color:#cfad66}
 .brand-name{letter-spacing:.17em}.brand-sub{color:#d5b767}
 .main-nav{gap:clamp(20px,2.5vw,42px)}
 .main-nav>a{letter-spacing:.14em;position:relative}
-.main-nav>a:not(.nav-join):after{content:"";position:absolute;left:0;right:100%;bottom:4px;height:1px;background:var(--gold);transition:right .2s ease}
+.main-nav>a:not(.nav-join):after{content:"";position:absolute;left:0;right:100%;bottom:-7px;height:1px;background:var(--gold);transition:right .2s ease}
 .main-nav>a:not(.nav-join):hover:after{right:0}
 .main-nav .nav-join{padding:15px 19px;border:1px solid #d5b767;background:linear-gradient(135deg,#687944,#a48c4c 55%,#7b4533);box-shadow:4px 4px 0 #17180f,5px 5px 0 #c59b5266;letter-spacing:.13em}
 .hero{min-height:780px;height:min(900px,calc(100svh - 100px));border-bottom:1px solid #d2b1687a}
@@ -1201,5 +1201,43 @@ body{
   .overline{font-size:10.5px}
 
   .footer-bottom{font-size:9.5px}
+}
+
+/* ============================================================================
+   COPY CLEANUP PASS — longer brand lockup, nav hover underline, heavier footer
+   mission line. Text/lockup only: no palette, imagery or motion changes.
+   ========================================================================== */
+
+/* The brand lockup now carries "CAMPUS AMBASSADOR ASSEMBLY". */
+.header-brand .brand-name,
+.site-footer .brand-name{
+  font-size:clamp(10.5px,1.05vw,13px);
+  letter-spacing:.09em;
+  white-space:nowrap;
+}
+
+.site-footer .ecell-logo{width:104px}
+
+/* Footer mission line: bolder and more legible than the old muted 13px. */
+.footer-top>p{
+  color:#c9bfa6;
+  font-weight:600;
+  letter-spacing:.01em;
+  line-height:1.75;
+}
+
+/* The bottom disclaimer strip was removed, so keep padding under the rule. */
+.site-footer{padding-bottom:24px}
+
+@media(max-width:900px){
+  .header-brand .brand-name,
+  .site-footer .brand-name{font-size:11px;letter-spacing:.07em}
+}
+
+@media(max-width:640px){
+  .header-brand .brand-name,
+  .site-footer .brand-name{font-size:10px;letter-spacing:.05em}
+  .main-nav>a:not(.nav-join):after{bottom:10px}
+  .site-footer{padding-bottom:18px}
 }
 
