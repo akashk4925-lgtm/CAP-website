@@ -9,8 +9,10 @@ import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const isParticipant = url.searchParams.get("portal") === "participant";
-  const loginPath = isParticipant ? "/portal/login" : "/admin/login";
+  const portal = url.searchParams.get("portal"); // "participant" | "signup" | null (admin)
+  const isParticipant = portal === "participant";
+  const isSignup = portal === "signup";
+  const loginPath = (isParticipant || isSignup) ? "/portal/login" : "/admin/login";
 
   // 1. Rate limiting (max 15 attempts per 5 minutes per IP)
   const ip = getClientIp(request);
@@ -44,8 +46,8 @@ export async function GET(request: Request) {
     secure: process.env.NODE_ENV === "production",
   });
 
-  if (isParticipant) {
-    response.cookies.set("cap_oauth_portal", "participant", {
+  if (isParticipant || isSignup) {
+    response.cookies.set("cap_oauth_portal", isSignup ? "signup" : "participant", {
       path: "/",
       httpOnly: true,
       sameSite: "lax",

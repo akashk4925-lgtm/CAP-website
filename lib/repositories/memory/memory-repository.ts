@@ -1654,6 +1654,7 @@ export class MemoryRepository implements SubmissionsRepository {
         rollNumber,
         totalPoints: 0,
         rank: (this.participants.length + 1) as unknown as number,
+        status: "Pending Approval",
       };
 
       this.participants.push(newParticipant);
