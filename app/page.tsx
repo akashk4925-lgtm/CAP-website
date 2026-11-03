@@ -157,10 +157,6 @@ function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   return <span aria-hidden="true" className="arrow">{diagonal ? "↗" : "→"}</span>;
 }
 
-function HexMark() {
-  return <span className="hex-mark" aria-hidden="true"><span>✦</span></span>;
-}
-
 function ECellLogo() {
   return <Image src="/images/ecell-logo-theme.png" alt="E-Cell IIT (BHU)" width={149} height={60} className="ecell-logo" />;
 }
@@ -588,7 +584,7 @@ export default function Home() {
           className={`entry-screen ${gateLeaving ? "entry-screen--leaving" : ""}`}
           role="dialog"
           aria-modal="true"
-          aria-label="Welcome to Campus Assembly"
+          aria-label="Welcome to Campus Ambassador Program"
         >
           <Image src="/images/cap-entry-background.png" alt="" fill sizes="100vw" priority className="entry-backdrop-photo" />
           <div className="entry-flag-motion" aria-hidden="true"><span className="entry-flag entry-flag-left" /><span className="entry-flag entry-flag-right" /></div>
@@ -627,9 +623,8 @@ export default function Home() {
         data-launching={!hasEntered ? "true" : "false"}
         inert={!hasEntered}
       >
-      <div className="announcement"><span className="live-dot" /> INTEL UPDATE <span className="announcement-divider">/</span> THE NEXT GENERATION OF CAMPUS LEADERS STARTS HERE <a href="#about">DECRYPT <Arrow /></a></div>
       <header className="site-header">
-        <a className="brand header-brand" href="#top" aria-label="Campus Assembly, E-Cell IIT BHU"><ECellLogo /><span className="brand-divider" aria-hidden="true" /><span className="brand-name">CAMPUS ASSEMBLY<span className="brand-sub">INITIATIVE  /  2026</span></span></a>
+        <a className="brand header-brand" href="#top" aria-label="Campus Ambassador Program, E-Cell IIT BHU"><ECellLogo /><span className="brand-divider" aria-hidden="true" /><span className="brand-name">CAMPUS AMBASSADOR PROGRAM<span className="brand-sub">INITIATIVE  /  2026</span></span></a>
         <button className="menu-toggle" aria-label={menuOpen ? "Close navigation" : "Open navigation"} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? "×" : "☰"}</button>
         <nav className={menuOpen ? "main-nav nav-open" : "main-nav"} aria-label="Main navigation" onClick={() => setMenuOpen(false)}>
           <a href="#about">ABOUT CAP</a><a href="#journey">HOW IT WORKS</a><a href="#missions">WHAT YOU’LL DO</a><a href="#faq">FAQ</a>
@@ -641,14 +636,11 @@ export default function Home() {
         <div className="hero-grid" aria-hidden="true" />
         <div className="hero-orbit orbit-one" aria-hidden="true" /><div className="hero-orbit orbit-two" aria-hidden="true" />
         <div className="hero-copy">
-          <div className="eyebrow"><span className="eyebrow-line" /> CAMPUS AMBASSADOR PROGRAM <span className="eyebrow-index">[ EARTH-616 / CAP ]</span></div>
           <h1 aria-label="THE FUTURE IS ASSEMBLED"><span className="hero-title-line"><AssembleLetters text="THE FUTURE" /></span><span className="hero-title-line"><AssembleLetters text="IS" delay={380} /></span><span className="hero-title-line"><span className="hero-title-accent"><AssembleLetters text="ASSEMBLED" delay={455} /></span></span></h1>
           <p className="hero-tagline">CAMPUS AMBASSADOR PROGRAM</p>
           <p className="hero-description"><span className="hero-description-highlight">CAP helps students bring entrepreneurship activities to their campus through outreach, content, events and quizzes.</span></p>
-          <div className="hero-actions"><a className="button button-primary" href="/portal/signup">REGISTER NOW <Arrow diagonal /></a><a className="button button-ghost" href="#about">WHAT IS CAP? <span>↓</span></a></div>
-          <div className="hero-caption"><span className="caption-mark">✳</span><span>FOR THE ONES WHO<br />MOVE THEIR WORLD.</span><span className="caption-rule" /><span className="caption-coordinate">19°04&apos; N / 72°52&apos; E</span></div>
+          <div className="hero-actions"><a className="button button-primary" href="#join">APPLICATION DETAILS <Arrow diagonal /></a><a className="button button-ghost" href="#about">WHAT IS CAP? <span>↓</span></a></div>
         </div>
-        <div className="hero-bottom"><span>SCROLL TO EXPLORE <b>↓</b></span><span>NO. 001 <i>—</i> CAMPUS OPERATIONS</span><span>INDEPENDENT FAN INITIATIVE <i>✳</i></span></div>
       </section>
 
       <div className="signal-strip"><div className="signal-track"><div className="signal-group"><span>ONE CAMPUS AT A TIME</span><b>✳</b><span>IDEAS INTO ACTION</span><b>✳</b><span>YOUR WORLD NEEDS YOU</span><b>✳</b></div><div className="signal-group" aria-hidden="true"><span>ONE CAMPUS AT A TIME</span><b>✳</b><span>IDEAS INTO ACTION</span><b>✳</b><span>YOUR WORLD NEEDS YOU</span><b>✳</b></div></div></div>
@@ -703,7 +695,7 @@ export default function Home() {
 
       <section className="join-section" id="join"><div className="section join-inner"><div className="section-kicker"><span>07 / REGISTRATION</span><span>JOIN THE PROGRAM</span></div><div className="join-content"><div><p className="overline">READY TO JOIN?</p><h2>Register<br /><em>now.</em></h2><p className="join-copy">Join the Campus Ambassador Program (CAP) initiative for E-Cell IIT BHU. Complete your registration to access missions and start earning points.</p><a className="button button-primary" href="/portal/signup">REGISTER NOW <Arrow /></a></div><div className="application-details"><h3>Already registered?</h3><p>Sign in to view your dashboard, submit task evidence, and track your ranking.</p><a className="text-link" href="/portal/login">SIGN IN TO PORTAL <Arrow /></a></div></div></div></section>
 
-      <footer className="site-footer"><div className="footer-top"><a className="brand" href="#top"><HexMark /><span className="brand-name">CAMPUS<span>·</span> ASSEMBLY<span className="brand-sub">INITIATIVE  /  2026</span></span></a><p>Built by fans. Powered by campus spirit.<br />An independent fan-made initiative.</p><a className="back-top" href="#top">BACK TO TOP ↑</a></div><div className="footer-bottom"><span>© CAP / CAMPUS OPERATIONS</span><span>UNOFFICIAL FAN-MADE PROJECT. NOT AFFILIATED WITH MARVEL STUDIOS OR THE WALT DISNEY COMPANY.</span><span>EARTH-616 <i>✳</i></span></div></footer>
+      <footer className="site-footer"><div className="footer-top"><a className="brand" href="#top" aria-label="Campus Ambassador Program, E-Cell IIT BHU"><ECellLogo /><span className="brand-divider" aria-hidden="true" /><span className="brand-name">CAMPUS AMBASSADOR PROGRAM<span className="brand-sub">INITIATIVE  /  2026</span></span></a><p>Built by fans. Powered by campus spirit.<br />An independent fan-made initiative.</p><a className="back-top" href="#top">BACK TO TOP ↑</a></div></footer>
       </div>
     </main>
   );
