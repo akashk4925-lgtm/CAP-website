@@ -1,32 +1,53 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import styles from "../portal.module.css";
 
-export default function StudentRegisterPage() {
+function RegisterContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     college: "",
     rollNumber: "",
-    branch: "",
-    year: "1st Year",
-    phone: "",
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const emailParam = searchParams?.get("email");
+    const nameParam = searchParams?.get("name");
+    const noticeParam = searchParams?.get("notice");
+
+    if (emailParam || nameParam) {
+      setFormData((prev) => ({
+        ...prev,
+        email: emailParam || prev.email,
+        name: nameParam || prev.name,
+      }));
+    }
+
+    if (noticeParam === "not_registered") {
+      setError("This Google account is not yet registered. Please complete your registration below.");
+    }
+  }, [searchParams]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (!formData.name.trim() || !formData.email.trim() || !formData.college.trim() || !formData.rollNumber.trim()) {
-      setError("Please complete all required fields (Name, Email, College, and Roll Number).");
+    const name = formData.name.trim();
+    const email = formData.email.trim().toLowerCase();
+    const college = formData.college.trim();
+    const rollNumber = formData.rollNumber.trim().toUpperCase();
+
+    if (!name || !email || !college || !rollNumber) {
+      setError("Please fill in all required fields (Name, Email, College, and Roll Number).");
       return;
     }
 
@@ -36,7 +57,12 @@ export default function StudentRegisterPage() {
       const res = await fetch("/api/participant/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          name,
+          email,
+          college,
+          rollNumber,
+        }),
       });
 
       const body = await res.json();
@@ -54,134 +80,79 @@ export default function StudentRegisterPage() {
 
   return (
     <div className={styles.authPage}>
-      <div className={styles.card} style={{ maxWidth: 540 }}>
+      <div className={styles.card}>
         <div className={styles.header}>
-          <div className={styles.badge}>✦</div>
-          <h1 className={styles.title}>Ambassador Registration</h1>
+          <h1 className={styles.title}>Participant Registration</h1>
           <p className={styles.subtitle}>
-            Join the Campus Ambassador Program (CAP) initiative for E-Cell IIT BHU.
+            Campus Ambassador Program &bull; E-Cell IIT BHU
           </p>
         </div>
 
-        {error && <div className={styles.errorBanner}>{error}</div>}
+        {error && <div className={styles.errorBanner} style={{ marginBottom: 20 }}>{error}</div>}
 
         <form className={styles.form} onSubmit={handleSubmit}>
-          <div className={styles.formRow}>
-            <div className={styles.formGroup}>
-              <label className={styles.label} htmlFor="name">
-                Full Name *
-              </label>
-              <input
-                id="name"
-                type="text"
-                className={styles.input}
-                placeholder="e.g. Aarav Sharma"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                disabled={loading}
-                required
-              />
-            </div>
-
-            <div className={styles.formGroup}>
-              <label className={styles.label} htmlFor="email">
-                Email Address *
-              </label>
-              <input
-                id="email"
-                type="email"
-                className={styles.input}
-                placeholder="e.g. aarav@example.com"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                disabled={loading}
-                required
-              />
-            </div>
-          </div>
-
-          <div className={styles.formRow}>
-            <div className={styles.formGroup}>
-              <label className={styles.label} htmlFor="college">
-                College / University *
-              </label>
-              <input
-                id="college"
-                type="text"
-                className={styles.input}
-                placeholder="e.g. IIT BHU or NIT Patna"
-                value={formData.college}
-                onChange={(e) => setFormData({ ...formData, college: e.target.value })}
-                disabled={loading}
-                required
-              />
-            </div>
-
-            <div className={styles.formGroup}>
-              <label className={styles.label} htmlFor="rollNumber">
-                Roll Number / Student ID *
-              </label>
-              <input
-                id="rollNumber"
-                type="text"
-                className={styles.input}
-                placeholder="e.g. 24EE1001"
-                value={formData.rollNumber}
-                onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
-                disabled={loading}
-                required
-              />
-            </div>
-          </div>
-
-          <div className={styles.formRow}>
-            <div className={styles.formGroup}>
-              <label className={styles.label} htmlFor="branch">
-                Department / Branch
-              </label>
-              <input
-                id="branch"
-                type="text"
-                className={styles.input}
-                placeholder="e.g. Electrical Engineering"
-                value={formData.branch}
-                onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
-                disabled={loading}
-              />
-            </div>
-
-            <div className={styles.formGroup}>
-              <label className={styles.label} htmlFor="year">
-                Year of Study
-              </label>
-              <select
-                id="year"
-                className={styles.select}
-                value={formData.year}
-                onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-                disabled={loading}
-              >
-                <option value="1st Year">1st Year</option>
-                <option value="2nd Year">2nd Year</option>
-                <option value="3rd Year">3rd Year</option>
-                <option value="4th Year">4th Year</option>
-                <option value="Postgraduate">Postgraduate</option>
-              </select>
-            </div>
+          <div className={styles.formGroup}>
+            <label className={styles.label} htmlFor="name">
+              Full Name
+            </label>
+            <input
+              id="name"
+              type="text"
+              className={styles.input}
+              placeholder="e.g. Aarav Sharma"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              disabled={loading}
+              required
+              autoFocus
+            />
           </div>
 
           <div className={styles.formGroup}>
-            <label className={styles.label} htmlFor="phone">
-              Contact Phone (Optional)
+            <label className={styles.label} htmlFor="email">
+              Email Address
             </label>
             <input
-              id="phone"
-              type="tel"
+              id="email"
+              type="email"
               className={styles.input}
-              placeholder="e.g. +91 98765 43210"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              placeholder="e.g. aarav@example.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               disabled={loading}
+              required
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.label} htmlFor="college">
+              College / University
+            </label>
+            <input
+              id="college"
+              type="text"
+              className={styles.input}
+              placeholder="e.g. IIT BHU or NIT Patna"
+              value={formData.college}
+              onChange={(e) => setFormData({ ...formData, college: e.target.value })}
+              disabled={loading}
+              required
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.label} htmlFor="rollNumber">
+              Roll Number / Student ID
+            </label>
+            <input
+              id="rollNumber"
+              type="text"
+              className={styles.input}
+              placeholder="e.g. 24EE1001"
+              value={formData.rollNumber}
+              onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
+              disabled={loading}
+              required
             />
           </div>
 
@@ -190,7 +161,7 @@ export default function StudentRegisterPage() {
           </button>
         </form>
 
-        <p className={styles.switchText}>
+        <p className={styles.switchText} style={{ marginTop: 24 }}>
           Already registered?{" "}
           <Link href="/portal/login" className={styles.link}>
             Sign in here ↗
@@ -198,7 +169,7 @@ export default function StudentRegisterPage() {
         </p>
 
         <div style={{ marginTop: 20, textAlign: "center" }}>
-          <Link href="/" className={styles.link} style={{ fontSize: 12, color: "#9ca3af" }}>
+          <Link href="/" className={styles.link} style={{ fontSize: 12, color: "#64748b" }}>
             ← Back to Public Website
           </Link>
         </div>
@@ -207,3 +178,10 @@ export default function StudentRegisterPage() {
   );
 }
 
+export default function StudentRegisterPage() {
+  return (
+    <Suspense fallback={<div className={styles.authPage}><div className={styles.card} style={{ textAlign: "center", color: "#94a3b8" }}>Loading registration...</div></div>}>
+      <RegisterContent />
+    </Suspense>
+  );
+}
