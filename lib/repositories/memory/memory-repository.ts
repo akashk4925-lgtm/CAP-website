@@ -2061,7 +2061,7 @@ export class MemoryRepository implements SubmissionsRepository {
 
   public async createTask(params: CreateTaskParams): Promise<Task> {
     return this.lock(() => {
-      const id = `task-${Date.now()}`;
+      const id = `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const task: Task = {
         id,
         title: params.title,
@@ -2126,7 +2126,7 @@ export class MemoryRepository implements SubmissionsRepository {
       if (!existing) throw new ApiError(404, "NOT_FOUND", "Task not found");
       const clone: Task = {
         ...existing,
-        id: `task-${Date.now()}`,
+        id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         title: `Copy of ${existing.title}`,
         deadline: new Date(Date.now() + 7 * 86400000).toISOString(),
         state: "Draft",

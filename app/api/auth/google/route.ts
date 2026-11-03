@@ -8,6 +8,10 @@ import {
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const isParticipant = url.searchParams.get("portal") === "participant";
+  const loginPath = isParticipant ? "/portal/login" : "/admin/login";
+
   // 1. Rate limiting (max 15 attempts per 5 minutes per IP)
   const ip = getClientIp(request);
   const rateLimit = checkRateLimit(`auth:google:${ip}`, 15, 5 * 60 * 1000);
@@ -21,7 +25,7 @@ export async function GET(request: Request) {
   // 2. Check if Google OAuth is configured
   if (!isGoogleOAuthConfigured()) {
     // If not configured, redirect back to login page with helpful message
-    const loginUrl = new URL("/admin/login", request.url);
+    const loginUrl = new URL(loginPath, request.url);
     loginUrl.searchParams.set("error", "oauth_not_configured");
     return NextResponse.redirect(loginUrl);
   }
@@ -39,6 +43,23 @@ export async function GET(request: Request) {
     maxAge: 600,
     secure: process.env.NODE_ENV === "production",
   });
+
+  if (isParticipant) {
+    response.cookies.set("cap_oauth_portal", "participant", {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 600,
+      secure: process.env.NODE_ENV === "production",
+    });
+  } else {
+    response.cookies.set("cap_oauth_portal", "", {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 0,
+    });
+  }
 
   return response;
 }
