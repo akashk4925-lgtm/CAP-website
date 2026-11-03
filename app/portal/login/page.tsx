@@ -5,21 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import styles from "../portal.module.css";
 
-type SeedAmbassador = {
-  id: string;
-  name: string;
-  college: string;
-  rollNumber: string;
-  email: string;
-};
-
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [identifier, setIdentifier] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [seeds, setSeeds] = useState<SeedAmbassador[]>([]);
 
   const notice = searchParams?.get("notice");
   const errParam = searchParams?.get("error");
@@ -38,26 +29,12 @@ function LoginContent() {
       }
     }
     void checkExisting();
-
-    // Fetch seed ambassadors for quick switching
-    async function loadSeeds() {
-      try {
-        const res = await fetch("/api/participant/seed-list");
-        const data = await res.json();
-        if (data.ok && data.participants) {
-          setSeeds(data.participants);
-        }
-      } catch {
-        // Ignore seed fetch error
-      }
-    }
-    void loadSeeds();
   }, [router]);
 
-  const handleLogin = async (idToUse?: string) => {
-    const id = idToUse || identifier.trim();
-    if (!id) {
-      setError("Please enter your registered Email, Roll Number, or Participant ID.");
+  const handleLogin = async () => {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail || !trimmedEmail.includes("@")) {
+      setError("Please enter your valid registered email address.");
       return;
     }
 
@@ -68,7 +45,7 @@ function LoginContent() {
       const res = await fetch("/api/participant/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: id }),
+        body: JSON.stringify({ email: trimmedEmail }),
       });
 
       const body = await res.json();
@@ -78,7 +55,7 @@ function LoginContent() {
 
       router.push("/portal/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed. Please check your credentials.");
+      setError(err instanceof Error ? err.message : "Login failed. Please check your registered email.");
     } finally {
       setLoading(false);
     }
@@ -105,7 +82,7 @@ function LoginContent() {
         {errParam === "oauth_not_configured" && (
           <div className={styles.noticeWarning}>
             <strong style={{ display: "block", marginBottom: 4, fontWeight: 700 }}>OAuth Notice</strong>
-            Google OAuth is not configured in local environment. Use your registered Roll Number or Email below to sign in.
+            Google OAuth is not configured in local environment. Please sign in with your registered email below.
           </div>
         )}
 
@@ -149,9 +126,9 @@ function LoginContent() {
         </div>
 
         {/* Divider */}
-        <div className={styles.divider}>Or enter with Roll No / Email</div>
+        <div className={styles.divider}>Or enter with registered email</div>
 
-        {/* Credential / Identifier Form */}
+        {/* Email Only Login Form */}
         <form
           className={styles.form}
           onSubmit={(e) => {
@@ -160,18 +137,19 @@ function LoginContent() {
           }}
         >
           <div className={styles.formGroup}>
-            <label className={styles.label} htmlFor="identifier">
-              Email, Roll Number, or Participant ID
+            <label className={styles.label} htmlFor="email">
+              Registered Email Address
             </label>
             <input
-              id="identifier"
-              type="text"
+              id="email"
+              type="email"
               className={styles.input}
-              placeholder="e.g. 24EE1001 or student@iitbhu.ac.in"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="e.g. student@iitbhu.ac.in or name@gmail.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               disabled={loading}
               autoFocus
+              required
             />
           </div>
 
@@ -180,39 +158,12 @@ function LoginContent() {
           </button>
         </form>
 
-        <p className={styles.switchText} style={{ marginTop: 20 }}>
+        <p className={styles.switchText} style={{ marginTop: 24 }}>
           Not registered yet?{" "}
           <Link href="/portal/register" className={styles.link}>
             Register as Ambassador ↗
           </Link>
         </p>
-
-        {/* Development Quick-Personas */}
-        {seeds.length > 0 && (
-          <div className={styles.quickSection}>
-            <div className={styles.quickTitle}>
-              <span>Demo Quick Sign-In</span>
-              <small>Click any persona to log in</small>
-            </div>
-            <div className={styles.quickGrid}>
-              {seeds.slice(0, 6).map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={styles.quickBtn}
-                  onClick={() => {
-                    setIdentifier(s.rollNumber || s.email);
-                    void handleLogin(s.rollNumber || s.email);
-                  }}
-                  disabled={loading}
-                >
-                  <strong>{s.name}</strong>
-                  <small>{s.rollNumber} &bull; {s.college.split(" ")[0]}</small>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div style={{ marginTop: 24, textAlign: "center" }}>
           <Link href="/" className={styles.link} style={{ fontSize: 12, color: "#64748b" }}>
