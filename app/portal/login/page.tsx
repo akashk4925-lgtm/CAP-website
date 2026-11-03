@@ -1,16 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import styles from "../portal.module.css";
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const notice = searchParams?.get("notice");
   const errParam = searchParams?.get("error");
@@ -31,40 +27,10 @@ function LoginContent() {
     void checkExisting();
   }, [router]);
 
-  const handleLogin = async () => {
-    const trimmedEmail = email.trim().toLowerCase();
-    if (!trimmedEmail || !trimmedEmail.includes("@")) {
-      setError("Please enter your valid registered email address.");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetch("/api/participant/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmedEmail }),
-      });
-
-      const body = await res.json();
-      if (!res.ok) {
-        throw new Error(body.error?.message || "Failed to log in.");
-      }
-
-      router.push("/portal/dashboard");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed. Please check your registered email.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className={styles.authPage}>
       <div className={styles.card}>
-        {/* Header matching Admin Portal */}
+        {/* Header */}
         <div className={styles.header}>
           <h1 className={styles.title}>Participant Portal</h1>
           <p className={styles.subtitle}>
@@ -72,7 +38,7 @@ function LoginContent() {
           </p>
         </div>
 
-        {/* Status & Notice Banners */}
+        {/* Status / Alert Banners */}
         {notice === "signed_out" && (
           <div className={styles.noticeSuccess}>
             You have successfully signed out.
@@ -81,8 +47,8 @@ function LoginContent() {
 
         {errParam === "oauth_not_configured" && (
           <div className={styles.noticeWarning}>
-            <strong style={{ display: "block", marginBottom: 4, fontWeight: 700 }}>OAuth Notice</strong>
-            Google OAuth is not configured in local environment. Please sign in with your registered email below.
+            <strong style={{ display: "block", marginBottom: 4, fontWeight: 700 }}>Setup Needed</strong>
+            Google OAuth credentials are not configured in your <code style={{ background: "#1e293b", padding: "2px 6px", borderRadius: 4, color: "#fff" }}>.env</code> file. Add <code style={{ background: "#1e293b", padding: "2px 6px", borderRadius: 4, color: "#fff" }}>GOOGLE_CLIENT_ID</code> and <code style={{ background: "#1e293b", padding: "2px 6px", borderRadius: 4, color: "#fff" }}>GOOGLE_CLIENT_SECRET</code> to enable sign-in.
           </div>
         )}
 
@@ -92,9 +58,13 @@ function LoginContent() {
           </div>
         )}
 
-        {error && <div className={styles.errorBanner} style={{ marginBottom: 20 }}>{error}</div>}
+        {errParam === "not_registered" && (
+          <div className={styles.noticeWarning}>
+            Your Google email is not registered yet as an Ambassador.
+          </div>
+        )}
 
-        {/* Google Sign-In Button (Identical to Admin Login) */}
+        {/* Action Button: Sign in with Google */}
         <div>
           <a href="/api/auth/google?portal=participant" className={styles.googleBtn}>
             <svg
@@ -123,52 +93,6 @@ function LoginContent() {
             </svg>
             Sign in with Google
           </a>
-        </div>
-
-        {/* Divider */}
-        <div className={styles.divider}>Or enter with registered email</div>
-
-        {/* Email Only Login Form */}
-        <form
-          className={styles.form}
-          onSubmit={(e) => {
-            e.preventDefault();
-            void handleLogin();
-          }}
-        >
-          <div className={styles.formGroup}>
-            <label className={styles.label} htmlFor="email">
-              Registered Email Address
-            </label>
-            <input
-              id="email"
-              type="email"
-              className={styles.input}
-              placeholder="e.g. student@iitbhu.ac.in or name@gmail.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={loading}
-              autoFocus
-              required
-            />
-          </div>
-
-          <button type="submit" className={styles.buttonPrimary} disabled={loading}>
-            {loading ? "Authenticating..." : "Enter Portal →"}
-          </button>
-        </form>
-
-        <p className={styles.switchText} style={{ marginTop: 24 }}>
-          Not registered yet?{" "}
-          <Link href="/portal/register" className={styles.link}>
-            Register as Ambassador ↗
-          </Link>
-        </p>
-
-        <div style={{ marginTop: 24, textAlign: "center" }}>
-          <Link href="/" className={styles.link} style={{ fontSize: 12, color: "#64748b" }}>
-            ← Back to Public Website
-          </Link>
         </div>
       </div>
     </div>
