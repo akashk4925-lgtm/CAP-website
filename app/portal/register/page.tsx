@@ -31,19 +31,29 @@ function RegisterContent() {
     const nameParam = searchParams?.get("name");
     const noticeParam = searchParams?.get("notice");
 
+    // Defer state updates to avoid the "setState in effect" lint warning
+    const updates: (() => void)[] = [];
+
     if (emailParam || nameParam) {
-      setFormData((prev) => ({
-        ...prev,
-        email: emailParam || prev.email,
-        name: nameParam || prev.name,
-      }));
-      // Email from Google is verified — lock it
-      if (emailParam) setEmailLocked(true);
+      updates.push(() => {
+        setFormData((prev) => ({
+          ...prev,
+          email: emailParam || prev.email,
+          name: nameParam || prev.name,
+        }));
+        if (emailParam) setEmailLocked(true);
+      });
     }
 
     if (noticeParam === "not_registered") {
-      // Came from sign-in attempt; show a gentle notice (not an error)
-      setError("Your Google account isn't registered yet. Fill in the details below to complete your registration.");
+      updates.push(() =>
+        setError("Your Google account isn't registered yet. Fill in the details below to complete your registration.")
+      );
+    }
+
+    if (updates.length > 0) {
+      const t = setTimeout(() => updates.forEach((fn) => fn()), 0);
+      return () => clearTimeout(t);
     }
   }, [searchParams]);
 

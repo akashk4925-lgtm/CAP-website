@@ -24,42 +24,48 @@ export default function ApplicationStatusPage() {
   const [participantName, setParticipantName] = useState<string>("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchStatus = useCallback(async () => {
+  const fetchStatus = useCallback(async (): Promise<AppStatus> => {
     try {
       const res = await fetch("/api/participant/me", { cache: "no-store" });
-      const data = await res.json();
+      const data = await res.json() as { authenticated: boolean; participant?: { name?: string; status?: string } };
 
       if (!data.authenticated || !data.participant) {
-        setAppStatus("unauthenticated");
-        return;
+        return "unauthenticated";
       }
 
       setParticipantName(data.participant.name || "");
-      const resolved = resolveStatus(data.participant.status);
-      setAppStatus(resolved);
-
-      // Stop polling once a final decision is reached
-      if (resolved !== "pending" && intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      return resolveStatus(data.participant.status);
     } catch {
-      setAppStatus("unauthenticated");
+      return "unauthenticated";
     }
   }, []);
 
   useEffect(() => {
-    // Initial fetch
-    void fetchStatus();
+    let cancelled = false;
 
-    // Start polling; the callback will clear it once status is no longer pending
-    intervalRef.current = setInterval(() => {
-      void fetchStatus();
+    const run = async () => {
+      const status = await fetchStatus();
+      if (!cancelled) setAppStatus(status);
+    };
+
+    void run();
+
+    intervalRef.current = setInterval(async () => {
+      const status = await fetchStatus();
+      if (!cancelled) {
+        setAppStatus(status);
+        if (status !== "pending" && intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      }
     }, POLL_INTERVAL_MS);
 
     return () => {
+      cancelled = true;
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
     };
   }, [fetchStatus]);
